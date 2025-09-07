@@ -150,114 +150,120 @@ describe("SuperDataLoader.big", () => {
     20000
   );
 
-  it(
-    "with graphql",
-    withTestMetrics("with graphql", async () => {
-      const dataloaders = initDataLoaders();
-      const superDataLoaders = initSuperDataLoaders();
+  it("with graphql", async () => {
+    const dataloaders = initDataLoaders();
+    const superDataLoaders = initSuperDataLoaders();
 
-      const typeDefinition = gql`
-        type Query {
-          transactionItems: [TransactionItem!]!
-        }
+    const typeDefinition = gql`
+      type Query {
+        transactionItems: [TransactionItem!]!
+      }
 
-        type TransactionItem {
-          _id: String!
-          instrumentId: String!
-          instrument: Instrument
-        }
+      type TransactionItem {
+        _id: String!
+        instrumentId: String!
+        instrument: Instrument
+      }
 
-        type Instrument {
-          _id: String!
-          issuerId: String!
-          issuer: Issuer
-        }
+      type Instrument {
+        _id: String!
+        issuerId: String!
+        issuer: Issuer
+      }
 
-        type Issuer {
-          _id: String!
-        }
-      `;
+      type Issuer {
+        _id: String!
+      }
+    `;
 
-      const resolverObject = {
-        Query: {
-          transactionItems: () => TRANSACTION_ITEMS,
-        },
-        TransactionItem: {
-          instrument: async ({ instrumentId }, _, { dataloaders }) =>
-            dataloaders.instrumentById.load(instrumentId),
-        },
-        Instrument: {
-          issuer: ({ issuerId }, _, { dataloaders }) =>
-            issuerId ? dataloaders.issuerById.load(issuerId) : null,
-        },
-      };
+    const resolverObject = {
+      Query: {
+        transactionItems: () => TRANSACTION_ITEMS,
+      },
+      TransactionItem: {
+        instrument: async ({ instrumentId }, _, { dataloaders }) =>
+          dataloaders.instrumentById.load(instrumentId),
+      },
+      Instrument: {
+        issuer: ({ issuerId }, _, { dataloaders }) =>
+          issuerId ? dataloaders.issuerById.load(issuerId) : null,
+      },
+    };
 
-      const schema = makeExecutableSchema({
-        typeDefs: typeDefinition,
-        resolvers: resolverObject,
-      });
+    const schema = makeExecutableSchema({
+      typeDefs: typeDefinition,
+      resolvers: resolverObject,
+    });
 
-      const query = gql`
-        query {
-          transactionItems {
+    const query = gql`
+      query {
+        transactionItems {
+          _id
+          instrumentId
+          instrument {
             _id
-            instrumentId
-            instrument {
+            issuerId
+            issuer {
               _id
-              issuerId
-              issuer {
-                _id
-              }
             }
           }
         }
-      `;
+      }
+    `;
 
-      const startDataLoader = performance.now();
-      let result = await graphql({
-        schema,
-        source: query.loc?.source as Source,
-        rootValue: {},
-        contextValue: { dataloaders },
-        variableValues: {},
-      });
-      const endDataLoader = performance.now();
-      expect(result.errors).toBeUndefined();
+    // Test with regular DataLoader
+    const startDataLoader = performance.now();
+    const dataLoaderResult = await withTestMetrics(
+      "DataLoader GraphQL",
+      async () => {
+        const result = await graphql({
+          schema,
+          source: query.loc?.source as Source,
+          rootValue: {},
+          contextValue: { dataloaders },
+          variableValues: {},
+        });
+        return result;
+      }
+    )();
+    const endDataLoader = performance.now();
 
-      let transactionItems = result?.data?.transactionItems;
+    expect(dataLoaderResult.errors).toBeUndefined();
+    let transactionItems = dataLoaderResult?.data?.transactionItems;
+    expect(transactionItems).toBeDefined();
+    expect(transactionItems).toHaveLength(95022);
+    expect(transactionItems).toEqual((expanded as any).transactionItems);
 
-      expect(transactionItems).toBeDefined();
-      expect(transactionItems).toHaveLength(95022);
+    // Test with SuperDataLoader
+    const startSuperDataLoader = performance.now();
+    const superDataLoaderResult = await withTestMetrics(
+      "SuperDataLoader GraphQL",
+      async () => {
+        const result = await graphql({
+          schema,
+          source: query.loc?.source as Source,
+          rootValue: {},
+          contextValue: { dataloaders: superDataLoaders },
+          variableValues: {},
+        });
+        return result;
+      }
+    )();
+    const endSuperDataLoader = performance.now();
 
-      expect(transactionItems).toEqual((expanded as any).transactionItems);
+    expect(superDataLoaderResult.errors).toBeUndefined();
+    transactionItems = superDataLoaderResult?.data?.transactionItems;
+    expect(transactionItems).toBeDefined();
+    expect(transactionItems).toHaveLength(95022);
+    expect(transactionItems).toEqual((expanded as any).transactionItems);
 
-      const startSuperDataLoader = performance.now();
-      result = await graphql({
-        schema,
-        source: query.loc?.source as Source,
-        rootValue: {},
-        contextValue: { dataloaders: superDataLoaders },
-        variableValues: {},
-      });
-      const endSuperDataLoader = performance.now();
-      expect(result.errors).toBeUndefined();
+    const dataloaderTime = endDataLoader - startDataLoader;
+    const superDataLoaderTime = endSuperDataLoader - startSuperDataLoader;
 
-      transactionItems = result?.data?.transactionItems;
-
-      expect(transactionItems).toBeDefined();
-      expect(transactionItems).toHaveLength(95022);
-
-      expect(transactionItems).toEqual((expanded as any).transactionItems);
-
-      const dataloaderTime = endDataLoader - startDataLoader;
-      const superDataLoaderTime = endSuperDataLoader - startSuperDataLoader;
-
-      console.log(
-        `[(async)]:\n[SuperDataLoader]: ${superDataLoaderTime}\n[DataLoader]: ${dataloaderTime}\n${
-          dataloaderTime / superDataLoaderTime
-        }x) faster}`
-      );
-    }),
-    20000
-  );
+    console.log(
+      `\n⏱️ Performance Comparison:\n[SuperDataLoader]: ${superDataLoaderTime}ms\n[DataLoader]: ${dataloaderTime}ms\n${
+        dataloaderTime / superDataLoaderTime
+      }x faster with SuperDataLoader`
+    );
+  }, 20000);
 });
