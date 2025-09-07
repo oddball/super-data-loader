@@ -181,12 +181,24 @@ describe("SuperDataLoader.big", () => {
         transactionItems: () => TRANSACTION_ITEMS,
       },
       TransactionItem: {
-        instrument: async ({ instrumentId }, _, { dataloaders }) =>
-          dataloaders.instrumentById.load(instrumentId),
+        instrument: async ({ instrumentId }, _, { dataloaders }) => {
+          if (!instrumentId) {
+            return null;
+          }
+          const instrument = await dataloaders.instrumentById.load(
+            instrumentId
+          );
+          return instrument;
+        },
       },
       Instrument: {
-        issuer: ({ issuerId }, _, { dataloaders }) =>
-          issuerId ? dataloaders.issuerById.load(issuerId) : null,
+        issuer: async ({ issuerId }, _, { dataloaders }) => {
+          if (!issuerId) {
+            return null;
+          }
+          const issuer = await dataloaders.issuerById.load(issuerId);
+          return issuer;
+        },
       },
     };
 
