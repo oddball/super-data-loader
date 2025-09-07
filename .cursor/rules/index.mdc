@@ -1,0 +1,38 @@
+---
+alwaysApply: false
+---
+
+# SuperDataLoader
+
+## Project Overview
+
+This is a TypeScript repo
+
+## Technology Stack
+
+### Prettier Configuration
+
+```json
+{
+  "printWidth": 140,
+  "semi": true,
+  "tabWidth": 4,
+  "bracketSpacing": true,
+  "arrowParens": "always",
+  "trailingComma": "none"
+}
+```
+
+## Testing Patterns
+
+- Write tests using Vitest
+- Aim for good test coverage but focus on critical paths
+- Test error scenarios and edge cases
+
+## Performance Considerations
+
+## Development Workflow
+
+- Use `npm run build` to build for production
+- Use `npm run test` to run tests with coverage, but since we have so many test cases, run tests only related to the current changes
+- Use `npm run lint` to check code quality

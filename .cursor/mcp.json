@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-filesystem"],
+      "env": {
+        "NODE_PATH": "."
+      }
+    },
+    "git": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-git"],
+      "env": {
+        "NODE_PATH": "."
+      }
+    },
+    "typescript": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-typescript"]
+    }
+  }
+}

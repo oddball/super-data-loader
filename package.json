@@ -1,0 +1,30 @@
+{
+  "name": "superdataloader",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "cross-env NODE_PATH=. npx vitest --minWorkers=1 --maxWorkers=1",
+    "lint": "npx eslint --ext ts,tsx src"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "overrides": {
+    "graphql": "^16.11.0"
+  },
+  "devDependencies": {
+    "@graphql-tools/schema": "^10.0.25",
+    "@types/node": "^24.3.1",
+    "cross-env": "^10.0.0",
+    "dataloader": "^2.2.3",
+    "eslint": "^9.35.0",
+    "graphql": "^16.11.0",
+    "graphql-tag": "^2.12.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.42.0",
+    "vitest": "^3.2.4"
+  }
+}
