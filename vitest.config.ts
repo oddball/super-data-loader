@@ -26,9 +26,8 @@ export default defineConfig({
       ],
     },
     reporters: ["verbose"],
-    hookTimeout: 30000,
-    testTimeout: 30000,
-    teardownTimeout: 30000,
+    testTimeout: 7000,
+    teardownTimeout: 1000,
     pool: "forks",
   },
 });

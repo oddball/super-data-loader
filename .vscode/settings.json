@@ -1,5 +1,5 @@
 {
-  "cSpell.words": [],
+  "cSpell.words": ["dataloaders"],
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "[typescript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"

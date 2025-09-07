@@ -113,8 +113,8 @@ describe("SuperDataLoader.big", () => {
   );
 
   it(
-    "expand",
-    withTestMetrics("expand", async () => {
+    "loadMany, but without using graphql",
+    withTestMetrics("loadMany, but without using graphql", async () => {
       const dataloaders = initDataLoaders();
 
       const instrumentIds: readonly string[] = TRANSACTION_ITEMS.map(
