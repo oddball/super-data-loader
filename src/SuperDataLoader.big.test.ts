@@ -32,6 +32,17 @@ import instruments from "./tst_data/instruments.json";
 import issuers from "./tst_data/issuers.json";
 import transactionItemsArray from "./tst_data/transactionItemsArray.json";
 import withTestMetrics from "./utils/testMetrics";
+import { keyBy } from "lodash";
+
+const INSTRUMENTS_BY_ID_STATIC = keyBy(instruments, "_id");
+const ISSUER_BY_ID_STATIC = keyBy(issuers, "_id");
+
+type Issuer = {
+  readonly _id: string;
+};
+type Instrument = {
+  readonly _id: string;
+};
 
 const INSTRUMENTS_BY_ID: Record<
   string,
@@ -182,12 +193,39 @@ describe("SuperDataLoader.big", () => {
       },
       TransactionItem: {
         instrument: ({ instrumentId }, _, { dataloaders }) => {
-          return dataloaders.instrumentById.load(instrumentId);
+          let result: Promise<Instrument | null> | null | Instrument = null;
+          result = dataloaders.instrumentById.load(instrumentId);
+          if (result instanceof Promise) {
+            console.log("Returning Promise<Instrument>");
+          } else {
+            console.log("Returning Instrument");
+          }
+
+          /*const random = Math.random();
+          if (random < 0.5) {
+            result = INSTRUMENTS_BY_ID_STATIC[instrumentId];
+          } else {
+            result = dataloaders.instrumentById.load(instrumentId);
+          }*/
+          return result;
         },
       },
       Instrument: {
         issuer: ({ issuerId }, _, { dataloaders }) => {
-          return dataloaders.issuerById.load(issuerId);
+          let result: Promise<Issuer | null> | null | Issuer = null;
+          result = dataloaders.issuerById.load(issuerId);
+          if (result instanceof Promise) {
+            console.log("Returning Promise<Issuer>");
+          } else {
+            console.log("Returning Issuer");
+          }
+          /*const random = Math.random();
+          if (random < 0.5) {
+            result = ISSUER_BY_ID_STATIC[issuerId];
+          } else {
+            result = dataloaders.issuerById.load(issuerId);
+          }*/
+          return result;
         },
       },
     };
