@@ -89,6 +89,9 @@ export function createSuperDataLoader<T, TKey = string>({
 }: DataLoaderWithKeyFunction<T, TKey>) {
   const dataCache = new Map<string, T>();
   const keysToResolveOnNextTick = new Map<string, TKey>();
+  // Stores the resolve callbacks for in-flight load() calls, keyed by cache key.
+  // Multiple callers waiting on the same key share one entry.
+  const pendingResolvers = new Map<string, Array<(value: T | undefined) => void>>();
   let onNextTick: Promise<void> | undefined;
 
   const prepareNextTick = () =>
@@ -119,6 +122,15 @@ export function createSuperDataLoader<T, TKey = string>({
         }
 
         keysToResolveOnNextTick.clear();
+
+        // Directly resolve all pending load() Promises — one hop, no extra .then() chain.
+        for (const [keyStr, resolvers] of pendingResolvers) {
+          const value = dataCache.get(keyStr);
+          for (let i = 0; i < resolvers.length; i++) {
+            resolvers[i]!(value);
+          }
+        }
+        pendingResolvers.clear();
 
         resolve();
       });
@@ -177,10 +189,8 @@ export function createSuperDataLoader<T, TKey = string>({
   const load = (key: TKey) => {
     const keyStr = getKey(key);
 
-    const valueInCache = dataCache.get(keyStr);
-
-    if (valueInCache) {
-      return valueInCache;
+    if (dataCache.has(keyStr)) {
+      return dataCache.get(keyStr);
     }
 
     if (keysToResolveOnNextTick.size === 0) {
@@ -189,7 +199,14 @@ export function createSuperDataLoader<T, TKey = string>({
 
     keysToResolveOnNextTick.set(keyStr, key);
 
-    return onNextTick!.then(() => dataCache.get(keyStr));
+    return new Promise<T | undefined>((resolve) => {
+      const existing = pendingResolvers.get(keyStr);
+      if (existing) {
+        existing.push(resolve);
+      } else {
+        pendingResolvers.set(keyStr, [resolve]);
+      }
+    });
   };
 
   const clear = (key: TKey) => {
