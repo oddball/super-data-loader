@@ -29,5 +29,10 @@ export default defineConfig({
     testTimeout: 7000,
     teardownTimeout: 1000,
     pool: "forks",
+    poolOptions: {
+      forks: {
+        execArgv: ["--expose-gc"],
+      },
+    },
   },
 });
