@@ -197,10 +197,12 @@ describe("SuperDataLoader.graphql", () => {
     const dataloaderTime = endDataLoader - startDataLoader;
     const superDataLoaderTime = endSuperDataLoader - startSuperDataLoader;
 
+    const faster: number = dataloaderTime / superDataLoaderTime;
+
     console.log(
-      `\n Performance Comparison:\n[SuperDataLoader]: ${superDataLoaderTime}ms\n[DataLoader]: ${dataloaderTime}ms\n${
-        dataloaderTime / superDataLoaderTime
-      }x faster with SuperDataLoader`
+      `\n Performance Comparison:\n[SuperDataLoader]: ${superDataLoaderTime}ms\n[DataLoader]: ${dataloaderTime}ms\n${faster}x faster with SuperDataLoader`
     );
+
+    expect(faster).toBeGreaterThan(1);
   }, 20000);
 });
