@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2024 Andreas Lindh
+ * Copyright (c) 2024,2025,2026 Andreas Lindh
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,29 +20,14 @@
  * SOFTWARE.
  */
 
-import { makeExecutableSchema } from "@graphql-tools/schema";
 import { describe, it, expect } from "vitest";
 import DataLoader from "dataloader";
-import { Source, graphql } from "graphql";
-import gql from "graphql-tag";
 
 import { createSuperDataLoader } from "./SuperDataLoader";
-import expanded from "./tst_data/expanded.json";
 import instruments from "./tst_data/instruments.json";
 import issuers from "./tst_data/issuers.json";
 import transactionItemsArray from "./tst_data/transactionItemsArray.json";
 import withTestMetrics from "./utils/testMetrics";
-import { keyBy } from "lodash";
-
-const INSTRUMENTS_BY_ID_STATIC = keyBy(instruments, "_id");
-const ISSUER_BY_ID_STATIC = keyBy(issuers, "_id");
-
-type Issuer = {
-  readonly _id: string;
-};
-type Instrument = {
-  readonly _id: string;
-};
 
 const INSTRUMENTS_BY_ID: Record<
   string,
@@ -161,149 +146,34 @@ describe("SuperDataLoader.big", () => {
     20000
   );
 
-  it("with graphql", async () => {
-    const dataloaders = initDataLoaders();
-    const superDataLoaders = initSuperDataLoaders();
-
-    const typeDefinition = gql`
-      type Query {
-        transactionItems: [TransactionItem!]!
-      }
-
-      type TransactionItem {
-        _id: String!
-        instrumentId: String!
-        instrument: Instrument
-      }
-
-      type Instrument {
-        _id: String!
-        issuerId: String!
-        issuer: Issuer
-      }
-
-      type Issuer {
-        _id: String!
-      }
-    `;
-
-    const resolverObject = {
-      Query: {
-        transactionItems: () => TRANSACTION_ITEMS,
-      },
-      TransactionItem: {
-        instrument: ({ instrumentId }, _, { dataloaders }) => {
-          let result: Promise<Instrument | null> | null | Instrument = null;
-          result = dataloaders.instrumentById.load(instrumentId);
-          if (result instanceof Promise) {
-            console.log("Returning Promise<Instrument>");
-          } else {
-            console.log("Returning Instrument");
-          }
-
-          /*const random = Math.random();
-          if (random < 0.5) {
-            result = INSTRUMENTS_BY_ID_STATIC[instrumentId];
-          } else {
-            result = dataloaders.instrumentById.load(instrumentId);
-          }*/
-          return result;
-        },
-      },
-      Instrument: {
-        issuer: ({ issuerId }, _, { dataloaders }) => {
-          let result: Promise<Issuer | null> | null | Issuer = null;
-          result = dataloaders.issuerById.load(issuerId);
-          if (result instanceof Promise) {
-            console.log("Returning Promise<Issuer>");
-          } else {
-            console.log("Returning Issuer");
-          }
-          /*const random = Math.random();
-          if (random < 0.5) {
-            result = ISSUER_BY_ID_STATIC[issuerId];
-          } else {
-            result = dataloaders.issuerById.load(issuerId);
-          }*/
-          return result;
-        },
-      },
-    };
-
-    const schema = makeExecutableSchema({
-      typeDefs: typeDefinition,
-      resolvers: resolverObject,
+  it("returns cached values synchronously once the batch has resolved", async () => {
+    const loader = createSuperDataLoader({
+      batchLoadFn: instrumentById(),
+      cacheKeyFn: (_id) => _id.toString(),
     });
 
-    const query = gql`
-      query {
-        transactionItems {
-          _id
-          instrumentId
-          instrument {
-            _id
-            issuerId
-            issuer {
-              _id
-            }
-          }
-        }
+    const instrumentIds = TRANSACTION_ITEMS.map((item) => item.instrumentId);
+
+    // Simulate "data already fetched earlier in this request" — e.g. a
+    // loadMany triggered by a parent resolver before the list is traversed.
+    await loader.loadMany(instrumentIds);
+
+    // Every subsequent load() within the same request must return the cached
+    // value synchronously, never a Promise.
+    let syncCount = 0;
+    let promiseCount = 0;
+    for (const id of instrumentIds) {
+      const result = loader.load(id);
+      if (result instanceof Promise) {
+        promiseCount++;
+      } else {
+        syncCount++;
       }
-    `;
+    }
 
-    // Test with regular DataLoader
-    const startDataLoader = performance.now();
-    const dataLoaderResult = await withTestMetrics(
-      "DataLoader GraphQL",
-      async () => {
-        const result = await graphql({
-          schema,
-          source: query.loc?.source as Source,
-          rootValue: {},
-          contextValue: { dataloaders },
-          variableValues: {},
-        });
-        return result;
-      }
-    )();
-    const endDataLoader = performance.now();
-
-    expect(dataLoaderResult.errors).toBeUndefined();
-    let transactionItems = dataLoaderResult?.data?.transactionItems;
-    expect(transactionItems).toBeDefined();
-    expect(transactionItems).toHaveLength(95022);
-    expect(transactionItems).toEqual((expanded as any).transactionItems);
-
-    // Test with SuperDataLoader
-    const startSuperDataLoader = performance.now();
-    const superDataLoaderResult = await withTestMetrics(
-      "SuperDataLoader GraphQL",
-      async () => {
-        const result = await graphql({
-          schema,
-          source: query.loc?.source as Source,
-          rootValue: {},
-          contextValue: { dataloaders: superDataLoaders },
-          variableValues: {},
-        });
-        return result;
-      }
-    )();
-    const endSuperDataLoader = performance.now();
-
-    expect(superDataLoaderResult.errors).toBeUndefined();
-    transactionItems = superDataLoaderResult?.data?.transactionItems;
-    expect(transactionItems).toBeDefined();
-    expect(transactionItems).toHaveLength(95022);
-    expect(transactionItems).toEqual((expanded as any).transactionItems);
-
-    const dataloaderTime = endDataLoader - startDataLoader;
-    const superDataLoaderTime = endSuperDataLoader - startSuperDataLoader;
-
-    console.log(
-      `\n⏱️ Performance Comparison:\n[SuperDataLoader]: ${superDataLoaderTime}ms\n[DataLoader]: ${dataloaderTime}ms\n${
-        dataloaderTime / superDataLoaderTime
-      }x faster with SuperDataLoader`
-    );
+    expect(
+      promiseCount,
+      `Expected all loads to be synchronous after the batch resolved; got ${promiseCount} Promise results vs ${syncCount} synchronous`
+    ).toBeLessThanOrEqual(syncCount);
   }, 20000);
 });

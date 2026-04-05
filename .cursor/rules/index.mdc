@@ -6,7 +6,8 @@ alwaysApply: false
 
 ## Project Overview
 
-This is a TypeScript repo
+This is a TypeScript repo. The goal of SuperDataLoader is to make a drop-in replacement for DataLoader. DataLoader returns promises, even when the data is available. The goal of SuperDataLoader is to be faster then DataLoader, by returning
+data instead of promises when possible.
 
 ## Technology Stack
 
@@ -23,16 +24,40 @@ This is a TypeScript repo
 }
 ```
 
+## Cache & Security Model
+
+- SuperDataLoader is **per-request scoped** — create a fresh instance per HTTP request, just like DataLoader. Never share an instance across requests or users; that would be a security leak.
+- Within a single request, the cache persists. If a key was loaded earlier in the same request (e.g. via a `loadMany` prefetch in a parent resolver), subsequent `load()` calls for that key return the value **synchronously**, never a Promise.
+- `load()` returns the cached value synchronously when available, and a Promise when the key needs to be fetched (batch is scheduled on `process.nextTick`).
+
+## GraphQL Execution Model
+
+- GraphQL resolves a list field by iterating all items in **one synchronous sweep** before any `process.nextTick` fires. This means on a cold cache every `load()` in a list resolver returns a Promise — that is expected and correct behaviour.
+- Synchronous returns are only possible for keys that were fetched **earlier in the same request** (e.g. a prefetch/`loadMany` that resolved before the resolver sweep started).
+- Do **not** test synchronous behaviour by running the same GraphQL query twice on the same loader instance — that simulates cross-request caching and is a security anti-pattern.
+
 ## Testing Patterns
 
-- Write tests using Vitest
-- Aim for good test coverage but focus on critical paths
-- Test error scenarios and edge cases
+- Write tests using Vitest.
+- Aim for good test coverage but focus on critical paths.
+- Test error scenarios and edge cases.
+- **Synchronous-return behaviour** must be tested in a dedicated unit test that:
+  1. Calls `loadMany` (or individual `load()` calls) and awaits the result — simulating data fetched earlier in the request.
+  2. Then calls `load()` for the same keys and asserts the result is **not** a `Promise`.
+  - See `"returns cached values synchronously once the batch has resolved"` in `SuperDataLoader.big.test.ts` as the reference.
+- **GraphQL integration tests** (`"with graphql"`) should verify correctness (same results as DataLoader) and performance only — not synchronous-return behaviour, because the cold-cache single-sweep constraint makes that impossible there.
+
+## Known Bugs Fixed
+
+- `optimizedFilterWithForLoop` previously used `result.concat(value)` (which does not mutate the array) instead of `result.push(value)`. This caused the "keys without cache" list to always be empty, so `loadMany` never actually batched uncached keys. Fixed to `result.push(value)`.
 
 ## Performance Considerations
 
+- SuperDataLoader is meaningfully faster than DataLoader when the cache is warm (synchronous path avoids Promise overhead).
+- For cold-cache scenarios (first load of a key) the performance gain comes from batching efficiency, not synchronous returns.
+
 ## Development Workflow
 
-- Use `npm run build` to build for production
-- Use `npm run test` to run tests with coverage, but since we have so many test cases, run tests only related to the current changes
-- Use `npm run lint` to check code quality
+- Use `npm run build` to build for production.
+- Use `npm run test` to run tests with coverage, but since we have many test cases, run only tests related to the current changes.
+- Use `npm run lint` to check code quality.

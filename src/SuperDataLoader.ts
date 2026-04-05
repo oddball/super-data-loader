@@ -75,7 +75,7 @@ function optimizedFilterWithForLoop<TData>(
   for (let i = 0; i < data.length; i++) {
     const value = data[i]!;
     if (filterFn(value)) {
-      result.concat(value);
+      result.push(value);
     }
   }
 
